@@ -1,70 +1,127 @@
-# Getting Started with Create React App
+# Shortest Path Algorithm Visualizer
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+An interactive web application for visualizing Dijkstra's algorithm and the Bellman-Ford algorithm in action. Built to make graph algorithms more accessible and easier to understand through visual representation.
 
-## Available Scripts
 
-In the project directory, you can run:
+## Motivation
 
-### `npm start`
+While studying for Harvard's COMPSCI 1240 (Design and Analysis of Algorithms) Midterm, I found myself struggling to fully understand the nuances of shortest path algorithms by just reading textbooks or watching lecture videos. I searched for interactive tools that could help me visualize these algorithms step-by-step, but couldn't find any that matched what I needed.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+So I decided to build one myself! This project was born out of a genuine need to better understand these fundamental algorithms through visualization, and I'm sharing it in the hope that it can help other students facing similar challenges.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Features
 
-### `npm test`
+- **Interactive Graph Visualization**: Clearly see how algorithms traverse graphs to find shortest paths
+- **Two Algorithm Implementations**:
+  - Dijkstra's algorithm (for graphs with non-negative edge weights)
+  - Bellman-Ford algorithm (handles negative edge weights and detects negative cycles)
+- **Step-by-Step Execution**: Watch algorithms progress one step at a time with detailed explanations
+- **Dynamic Data Structure Visualization**: 
+  - See priority queues and distance arrays update in real-time
+  - Visualize iterations and negative cycle detection for Bellman-Ford
+- **Graph Creation Options**:
+  - Auto-generate random graphs with configurable parameters
+  - Manual mode for creating custom graphs from scratch
+  - Control edge density, node count, and weight ranges
+- **Educational Features**:
+  - Algorithm reference guide with pseudocode
+  - Color-coded edges and nodes to indicate algorithm state
+  - Detailed explanations at each step
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Technologies Used
 
-### `npm run build`
+- React.js
+- Tailwind CSS
+- JavaScript (ES6+)
+- Lodash
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Installation and Usage
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Prerequisites
+- Node.js (v14.0 or higher)
+- npm (v6.0 or higher)
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Setup
+1. Clone the repository
+   ```bash
+   git clone https://github.com/yourusername/shortest-path-visualizer.git
+   cd shortest-path-visualizer
+   ```
 
-### `npm run eject`
+2. Install dependencies
+   ```bash
+   npm install
+   ```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+3. Start the development server
+   ```bash
+   npm start
+   ```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+4. Open your browser and navigate to `http://localhost:3000`
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### How to Use
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+1. **Select an Algorithm**: Choose between Dijkstra's algorithm and Bellman-Ford
+2. **Set Up a Graph**: 
+   - Use auto-generate mode with custom parameters, or
+   - Switch to manual mode to create your own graph
+3. **Visualization Controls**:
+   - Start: Begin the animation
+   - Step: Move through the algorithm one step at a time
+   - Reset: Clear the current execution
+   - Show: Skip to the final result
+4. **Learn**: Read the explanations for each step and refer to the algorithm reference
 
-## Learn More
+## Project Structure
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```
+src/
+├── components/
+│   └── ShortestPathVisualizer/
+│       ├── ShortestPathVisualizer.js  # Main component
+│       ├── GraphRenderer.js           # Renders nodes and edges
+│       ├── AlgorithmVisualizer.js     # Shows algorithm state
+│       ├── GraphGeneration.js         # Graph creation logic
+│       ├── DijkstraSteps.js           # Dijkstra algorithm logic
+│       └── BellmanFordSteps.js        # Bellman-Ford algorithm logic
+└── App.js                           # Root component
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Contributing
 
-### Code Splitting
+I built this project as an educational tool, and I'd love for it to grow with contributions from the community. Whether you're fixing bugs, adding features, or improving documentation, all contributions are welcome!
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-### Analyzing the Bundle Size
+### Ideas for Contributions
+- Additional algorithms (A*, Floyd-Warshall, etc.)
+- More visualization options
+- Performance improvements
+- Mobile responsiveness enhancements
+- Additional educational features
+- Accessibility improvements
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## About Me
 
-### Making a Progressive Web App
+I'm a junior at Harvard studying Computer Science with a passion for making complex topics more accessible through interactive tools. I believe visualization is a powerful way to understand algorithms and data structures, and I hope this project helps others in their learning journey.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+Feel free to reach out with questions, suggestions, or just to connect!
 
-### Advanced Configuration
+## License
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+This project is open source and available under the [MIT License](LICENSE).
 
-### Deployment
+## Acknowledgments
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+- Thanks to all the professors and TFs in Harvard's CS department who've helped deepen my understanding of algorithms
+- Inspired by various other algorithm visualization tools that have helped me learn
+- Built with React and Tailwind CSS
 
-### `npm run build` fails to minify
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Happy learning! 🍎
