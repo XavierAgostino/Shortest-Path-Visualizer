@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 /**
  * A pure "presentational" component that draws nodes and edges in the SVG.
@@ -20,6 +20,14 @@ function GraphRenderer({
   onNodeClick,
   onEdgeClick,
 }) {
+  // Check if we're on mobile based on user agent
+  // Note: This is a simple check and might not be perfect
+  const isMobile =
+    typeof window !== "undefined" &&
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+
   // RENDER EDGES
   const renderEdges = () => {
     return edges.map((edge) => {
@@ -33,12 +41,13 @@ function GraphRenderer({
       const angle = Math.atan2(dy, dx);
 
       // For node radius, arrow offset, etc.
-      const nodeRadius = 20;
-      
+      // Use slightly larger node radius on mobile for better touch targets
+      const nodeRadius = isMobile ? 24 : 20;
+
       // Variables for path calculation
       let sourceX, sourceY, targetX, targetY;
       let pathD = null;
-      
+
       // Adjust the path if this is part of a bidirectional pair
       if (edge.hasBidirectional) {
         // For bidirectional edges, create a curved path
@@ -46,18 +55,18 @@ function GraphRenderer({
         sourceY = source.y + nodeRadius * Math.sin(angle);
         targetX = target.x - nodeRadius * Math.cos(angle);
         targetY = target.y - nodeRadius * Math.sin(angle);
-        
+
         const midX = (source.x + target.x) / 2;
         const midY = (source.y + target.y) / 2;
-        
+
         // Create perpendicular offset for curved path
         const perpX = -dy * 0.2; // Perpendicular vector for curvature
         const perpY = dx * 0.2;
-        
+
         // Create curved control point
         const ctrlX = midX + perpX;
         const ctrlY = midY + perpY;
-        
+
         // Define curved path
         pathD = `M${sourceX},${sourceY} Q${ctrlX},${ctrlY} ${targetX},${targetY}`;
       } else {
@@ -69,7 +78,7 @@ function GraphRenderer({
       }
 
       // Arrow properties
-      const arrowSize = 10;
+      const arrowSize = isMobile ? 12 : 10; // Slightly larger on mobile
       const arrowAngle = Math.PI / 8;
 
       // Midpoint for label - adjusted based on if curved or not
@@ -80,8 +89,16 @@ function GraphRenderer({
         const perpX = -dy * 0.2; // Same perpendicular offset
         const perpY = dx * 0.2;
         // Quadratic bezier formula for t=0.5
-        midX = (1-t)*(1-t)*sourceX + 2*(1-t)*t*(source.x + target.x)/2 + t*t*targetX + perpX;
-        midY = (1-t)*(1-t)*sourceY + 2*(1-t)*t*(source.y + target.y)/2 + t*t*targetY + perpY;
+        midX =
+          (1 - t) * (1 - t) * sourceX +
+          (2 * (1 - t) * t * (source.x + target.x)) / 2 +
+          t * t * targetX +
+          perpX;
+        midY =
+          (1 - t) * (1 - t) * sourceY +
+          (2 * (1 - t) * t * (source.y + target.y)) / 2 +
+          t * t * targetY +
+          perpY;
       } else {
         // For straight lines, simple midpoint
         midX = (sourceX + targetX) / 2;
@@ -95,42 +112,44 @@ function GraphRenderer({
       const labelY = midY + Math.sin(perpAngle) * offset;
 
       // Color logic
-      let color = '#94a3b8'; // unvisited
-      let strokeWidth = 2;
-      let strokeDasharray = 'none';
+      let color = "#94a3b8"; // unvisited
+      let strokeWidth = isMobile ? 3 : 2; // Thicker lines on mobile
+      let strokeDasharray = "none";
       switch (edge.status) {
-        case 'candidate':
-          color = '#fb923c'; // orange
-          strokeWidth = 3;
+        case "candidate":
+          color = "#fb923c"; // orange
+          strokeWidth = isMobile ? 4 : 3;
           break;
-        case 'relaxed':
-          color = '#22c55e'; // green
-          strokeWidth = 3;
+        case "relaxed":
+          color = "#22c55e"; // green
+          strokeWidth = isMobile ? 4 : 3;
           break;
-        case 'excluded':
-          color = '#ef4444'; // red
-          strokeWidth = 1.5;
+        case "excluded":
+          color = "#ef4444"; // red
+          strokeWidth = isMobile ? 2.5 : 1.5;
           break;
-        case 'included':
-          color = '#22c55e'; // final included
-          strokeWidth = 4;
+        case "included":
+          color = "#22c55e"; // final included
+          strokeWidth = isMobile ? 5 : 4;
           break;
-        case 'negativecycle':
-          color = '#9333ea'; // purple
-          strokeWidth = 4;
-          strokeDasharray = '5,5';
+        case "negativecycle":
+          color = "#9333ea"; // purple
+          strokeWidth = isMobile ? 5 : 4;
+          strokeDasharray = "5,5";
           break;
         default:
           break;
       }
 
       return (
-          <g 
-            key={edge.id} 
-            onClick={() => onEdgeClick(edge.id)}
-            className="cursor-pointer"
-            data-tooltip={`${nodes[edge.source]?.label} → ${nodes[edge.target]?.label} (${edge.weight})`}
-          >
+        <g
+          key={edge.id}
+          onClick={() => onEdgeClick(edge.id)}
+          className="cursor-pointer"
+          data-tooltip={`${nodes[edge.source]?.label} → ${
+            nodes[edge.target]?.label
+          } (${edge.weight})`}
+        >
           {/* Main line or curve */}
           {edge.hasBidirectional ? (
             <path
@@ -152,23 +171,27 @@ function GraphRenderer({
               className="transition-all duration-300 ease-in-out" // Add this class
             />
           )}
-          
+
           {/* Arrow head */}
           <polygon
             points={`
               ${targetX},${targetY}
-              ${targetX - arrowSize * Math.cos(angle - arrowAngle)},${targetY - arrowSize * Math.sin(angle - arrowAngle)}
-              ${targetX - arrowSize * Math.cos(angle + arrowAngle)},${targetY - arrowSize * Math.sin(angle + arrowAngle)}
+              ${targetX - arrowSize * Math.cos(angle - arrowAngle)},${
+              targetY - arrowSize * Math.sin(angle - arrowAngle)
+            }
+              ${targetX - arrowSize * Math.cos(angle + arrowAngle)},${
+              targetY - arrowSize * Math.sin(angle + arrowAngle)
+            }
             `}
             fill={color}
           />
-          
+
           {/* Weight label */}
           <rect
-            x={labelX - 12}
-            y={labelY - 12}
-            width={24}
-            height={24}
+            x={labelX - (isMobile ? 15 : 12)}
+            y={labelY - (isMobile ? 15 : 12)}
+            width={isMobile ? 30 : 24}
+            height={isMobile ? 30 : 24}
             fill="white"
             stroke={color}
             strokeWidth="1"
@@ -181,7 +204,7 @@ function GraphRenderer({
             textAnchor="middle"
             dominantBaseline="middle"
             fontWeight="bold"
-            fontSize="12"
+            fontSize={isMobile ? "14" : "12"}
           >
             {edge.weight}
           </text>
@@ -194,23 +217,23 @@ function GraphRenderer({
   const renderNodes = () => {
     return nodes.map((node) => {
       // Default color
-      let fillColor = '#3b82f6';
-      let strokeColor = '#2563eb';
-      let strokeWidth = 2;
+      let fillColor = "#3b82f6";
+      let strokeColor = "#2563eb";
+      let strokeWidth = isMobile ? 3 : 2;
       let isAnimated = false;
 
       // Source node
       if (node.id === selectedSourceNode) {
-        fillColor = '#22c55e';
-        strokeColor = '#16a34a';
-        strokeWidth = 3;
+        fillColor = "#22c55e";
+        strokeColor = "#16a34a";
+        strokeWidth = isMobile ? 4 : 3;
       }
 
       // Dest node
       if (node.id === selectedDestNode) {
-        fillColor = '#f97316';
-        strokeColor = '#ea580c';
-        strokeWidth = 3;
+        fillColor = "#f97316";
+        strokeColor = "#ea580c";
+        strokeWidth = isMobile ? 4 : 3;
       }
 
       // Visited
@@ -220,25 +243,45 @@ function GraphRenderer({
 
       // Distance label
       const dist = distanceArray[node.id];
-      const distanceLabel = dist === undefined || dist === Infinity ? '∞' : dist;
+      const distanceLabel =
+        dist === undefined || dist === Infinity ? "∞" : dist;
+
+      // Larger hit area for mobile
+      const nodeRadius = isMobile ? 24 : 20;
 
       return (
-        <g key={node.id} onClick={() => onNodeClick(node.id)} className="cursor-pointer">
+        <g
+          key={node.id}
+          onClick={() => onNodeClick(node.id)}
+          className="cursor-pointer"
+        >
+          {/* Invisible larger hit area for mobile */}
+          {isMobile && (
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={nodeRadius + 15}
+              fill="transparent"
+              className="pointer-events-auto"
+            />
+          )}
+
           {/* Outer highlight if visited */}
           {isAnimated && (
             <circle
               cx={node.x}
               cy={node.y}
-              r={24}
+              r={nodeRadius + 4}
               fill="rgba(59, 130, 246, 0.2)"
               className="animate-pulse"
             />
           )}
+
           {/* Main circle */}
           <circle
             cx={node.x}
             cy={node.y}
-            r={20}
+            r={nodeRadius}
             fill={fillColor}
             stroke={strokeColor}
             strokeWidth={strokeWidth}
@@ -249,22 +292,23 @@ function GraphRenderer({
           {/* Node label */}
           <text
             x={node.x}
-            y={node.y}
+            y={node.y + 5}
             textAnchor="middle"
             dominantBaseline="middle"
             fill="white"
             fontWeight="bold"
-            fontSize="14"
+            fontSize={isMobile ? "16" : "14"}
           >
             {node.label}
           </text>
+
           {/* Distance label (if known) */}
           {distanceArray && Object.keys(distanceArray).length > 0 && (
             <g>
               <circle
                 cx={node.x}
-                cy={node.y - 30}
-                r={14}
+                cy={node.y - (isMobile ? 35 : 30)}
+                r={isMobile ? 16 : 14}
                 fill="white"
                 stroke={strokeColor}
                 strokeWidth="1"
@@ -272,12 +316,12 @@ function GraphRenderer({
               />
               <text
                 x={node.x}
-                y={node.y - 30}
+                y={node.y - (isMobile ? 35 : 30)}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fontSize="12"
+                fontSize={isMobile ? "14" : "12"}
                 fontWeight="bold"
-                fill={distanceLabel === '∞' ? '#ef4444' : '#1e40af'}
+                fill={distanceLabel === "∞" ? "#ef4444" : "#1e40af"}
               >
                 {distanceLabel}
               </text>
