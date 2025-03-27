@@ -125,7 +125,12 @@ function GraphRenderer({
       }
 
       return (
-        <g key={edge.id} onClick={() => onEdgeClick(edge.id)} className="cursor-pointer">
+          <g 
+            key={edge.id} 
+            onClick={() => onEdgeClick(edge.id)}
+            className="cursor-pointer"
+            data-tooltip={`${nodes[edge.source]?.label} → ${nodes[edge.target]?.label} (${edge.weight})`}
+          >
           {/* Main line or curve */}
           {edge.hasBidirectional ? (
             <path
@@ -238,7 +243,9 @@ function GraphRenderer({
             stroke={strokeColor}
             strokeWidth={strokeWidth}
             filter="drop-shadow(0px 2px 3px rgba(0,0,0,0.2))"
+            className="transition-all duration-300 ease-out"
           />
+
           {/* Node label */}
           <text
             x={node.x}

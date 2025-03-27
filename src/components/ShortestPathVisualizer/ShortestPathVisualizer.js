@@ -20,6 +20,10 @@ const ShortestPathVisualizer = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [steps, setSteps] = useState([]);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  
+  // Track confirmed shortest path edges
+  const [confirmedPathEdges, setConfirmedPathEdges] = useState(new Set());
 
   const [graphParams, setGraphParams] = useState({
     nodeCount: 6,
@@ -57,6 +61,9 @@ const ShortestPathVisualizer = () => {
   const [isSelectingSource, setIsSelectingSource] = useState(false);
   const [isSelectingDest, setIsSelectingDest] = useState(false);
 
+  // Visualization mode
+  const [visualizationMode, setVisualizationMode] = useState('explore'); // 'explore' or 'view'
+
   // Refs
   const svgRef = useRef(null);
   const animationFrameId = useRef(null);
@@ -66,6 +73,19 @@ const ShortestPathVisualizer = () => {
   // =========================
   const toggleLegend = () => setShowLegend(!showLegend);
   const toggleSidebar = () => setShowSidebar(!showSidebar);
+
+  // =========================
+  //   TOGGLE VISUALIZATION MODE
+  // =========================
+  const toggleVisualizationMode = () => {
+    if (visualizationMode === 'explore') {
+      setVisualizationMode('view');
+      setExplanation('Switched to View mode. You can now examine the paths without modifying the algorithm state.');
+    } else {
+      setVisualizationMode('explore');
+      setExplanation('Switched to Explore mode. You can now step through the algorithm execution.');
+    }
+  };
 
   // =========================
   //   CLEAR GRAPH
@@ -82,6 +102,7 @@ const ShortestPathVisualizer = () => {
     setExplanation('Graph cleared. You can now build a new graph from scratch.');
     setSelectedSourceNode(null);
     setSelectedDestNode(null);
+    setConfirmedPathEdges(new Set());
 
     // Reset all algorithm-related states
     setIsRunning(false);
@@ -89,6 +110,7 @@ const ShortestPathVisualizer = () => {
     setCurrentStep(0);
     setSteps([]);
     setShowAnswer(false);
+    setVisualizationMode('explore');
   };
 
   // =========================
@@ -116,7 +138,9 @@ const ShortestPathVisualizer = () => {
     setIterationCount(0);
     setNegativeCycleDetected(false);
     setCurrentAlgorithmStep('');
+    setConfirmedPathEdges(new Set());
     setExplanation('Random graph generated. Select an algorithm and press "Start" to begin.');
+    setVisualizationMode('explore');
 
     if (!svgRef.current) return; // If the ref is not ready
 
@@ -155,6 +179,7 @@ const ShortestPathVisualizer = () => {
     setDistanceArray({});
     setIterationCount(0);
     setNegativeCycleDetected(false);
+    setConfirmedPathEdges(new Set());
     resetGraph();
   };
 
@@ -167,6 +192,8 @@ const ShortestPathVisualizer = () => {
     setCurrentStep(0);
     setSteps([]);
     setShowAnswer(false);
+    setConfirmedPathEdges(new Set());
+    setVisualizationMode('explore');
 
     const resetEdges = edges.map((edge) => ({ ...edge, status: 'unvisited' }));
     setEdges(resetEdges);
@@ -218,6 +245,11 @@ const ShortestPathVisualizer = () => {
   //   STEP-BY-STEP
   // =========================
   const handleStep = () => {
+    if (visualizationMode === 'view') {
+      setExplanation('In View mode. Switch to Explore mode to step through the algorithm.');
+      return;
+    }
+    
     if (steps.length === 0) {
       const stepList =
         algorithm === 'dijkstra'
@@ -243,31 +275,148 @@ const ShortestPathVisualizer = () => {
     }
   };
 
+  const handleBackStep = () => {
+    if (visualizationMode === 'view') {
+      setExplanation('In View mode. Switch to Explore mode to step through the algorithm.');
+      return;
+    }
+    
+    if (currentStep > 0) {
+      const newStep = currentStep - 1;
+      
+      // Need to reset confirmed path edges when stepping back
+      if (newStep === 0) {
+        setConfirmedPathEdges(new Set());
+      } else {
+        // Recompute confirmed path edges based on all previous steps
+        const updatedConfirmedEdges = new Set();
+        for (let i = 0; i < newStep; i++) {
+          const step = steps[i];
+          if (step.pathEdgeUpdates) {
+            step.pathEdgeUpdates.forEach(edgeId => {
+              updatedConfirmedEdges.add(edgeId);
+            });
+          }
+        }
+        setConfirmedPathEdges(updatedConfirmedEdges);
+      }
+      
+      applyStep(newStep);
+      setCurrentStep(newStep);
+    }
+  };
+  
+  // Forward actually advances to the next significant event
+  const handleForwardStep = () => {
+    if (visualizationMode === 'view') {
+      setExplanation('In View mode. Switch to Explore mode to step through the algorithm.');
+      return;
+    }
+    
+    if (steps.length === 0) {
+      const stepList =
+        algorithm === 'dijkstra'
+          ? generateDijkstraSteps({
+              nodes,
+              edges,
+              selectedSourceNode,
+              graphParams,
+              setShortestPathResult,
+            })
+          : generateBellmanFordSteps({
+              nodes,
+              edges,
+              selectedSourceNode,
+              graphParams,
+              setShortestPathResult,
+            });
+      setSteps(stepList);
+    }
+    
+    // Skip ahead to the next significant event (path update, node visit, etc.)
+    if (currentStep < steps.length) {
+      let significantStepFound = false;
+      let nextStep = currentStep;
+      
+      while (nextStep < steps.length && !significantStepFound) {
+        const step = steps[nextStep];
+        
+        // Check if this step contains a significant event
+        if (
+          (step.pathEdgeUpdates && step.pathEdgeUpdates.length > 0) || // New edge in path
+          (step.visitedNodes && step.visitedNodes.size > visitedNodes.size) || // New node visited
+          step.negativeCycleDetected // Negative cycle found
+        ) {
+          significantStepFound = true;
+        } else {
+          nextStep++;
+        }
+      }
+      
+      // Apply all steps up to the significant one
+      for (let i = currentStep; i <= nextStep; i++) {
+        if (i < steps.length) {
+          applyStep(i);
+        }
+      }
+      
+      setCurrentStep(Math.min(nextStep + 1, steps.length));
+      
+      if (nextStep >= steps.length) {
+        setExplanation("Reached the end of the algorithm execution.");
+      }
+    }
+  };
+
   // =========================
   //   APPLY STEP
   // =========================
   const applyStep = (stepIndex) => {
-    if (stepIndex >= steps.length) return;
+    if (stepIndex < 0 || stepIndex >= steps.length) return;
     const step = steps[stepIndex];
-
-    setExplanation(step.explanation);
-    setCurrentAlgorithmStep(step.algorithmStep || '');
-
-    if (step.visitedNodes) setVisitedNodes(new Set(step.visitedNodes));
-    if (step.minHeap) setMinHeap([...step.minHeap]);
-    if (step.distanceArray) setDistanceArray({ ...step.distanceArray });
-    if (step.iterationCount !== undefined) setIterationCount(step.iterationCount);
-    if (step.negativeCycleDetected !== undefined) setNegativeCycleDetected(step.negativeCycleDetected);
-
-    // Update edges
-    const newEdges = [...edges];
+    
+    // Start with edges that have unvisited status, but preserve confirmed path edges
+    const resetEdges = edges.map(e => {
+      // If this edge is part of a confirmed path, keep its status
+      if (confirmedPathEdges.has(e.id)) {
+        return { ...e, status: 'included' };
+      }
+      return { ...e, status: 'unvisited' };
+    });
+    
+    // Apply step changes
+    const newEdges = [...resetEdges];
     step.edgeUpdates.forEach((update) => {
       const idx = newEdges.findIndex((e) => e.id === update.id);
       if (idx !== -1) {
         newEdges[idx] = { ...newEdges[idx], status: update.status };
       }
     });
+    
+    // Update confirmed path edges if this step adds to the path
+    if (step.pathEdgeUpdates && step.pathEdgeUpdates.length > 0) {
+      const newConfirmedEdges = new Set(confirmedPathEdges);
+      step.pathEdgeUpdates.forEach(edgeId => {
+        newConfirmedEdges.add(edgeId);
+        
+        // Also update the edge status to 'included'
+        const idx = newEdges.findIndex((e) => e.id === edgeId);
+        if (idx !== -1) {
+          newEdges[idx] = { ...newEdges[idx], status: 'included' };
+        }
+      });
+      setConfirmedPathEdges(newConfirmedEdges);
+    }
+    
+    // Update all states
     setEdges(newEdges);
+    setExplanation(step.explanation);
+    setCurrentAlgorithmStep(step.algorithmStep || '');
+    setVisitedNodes(new Set(step.visitedNodes || []));
+    setMinHeap([...(step.minHeap || [])]);
+    setDistanceArray({ ...(step.distanceArray || {}) });
+    setIterationCount(step.iterationCount || 0);
+    setNegativeCycleDetected(step.negativeCycleDetected || false);
   };
 
   // =========================
@@ -324,6 +473,9 @@ const ShortestPathVisualizer = () => {
           newEdges[index].status = 'included';
         }
       });
+      
+      // Save these path edges as confirmed
+      setConfirmedPathEdges(pathEdgeIds);
     } else {
       // Negative cycle detected
       const { distances } = shortestPathResult;
@@ -344,6 +496,7 @@ const ShortestPathVisualizer = () => {
     setShowAnswer(true);
     setIsRunning(false);
     setIsPaused(false);
+    setVisualizationMode('view');
 
     if (negativeCycleDetected) {
       setExplanation(`${algorithm === 'dijkstra' ? "Dijkstra's" : 'Bellman-Ford'} detected a negative cycle. No shortest paths exist.`);
@@ -460,15 +613,26 @@ const ShortestPathVisualizer = () => {
       setSelectedSourceNode(nodeId);
       setIsSelectingSource(false);
       setExplanation(`Set node ${nodes[nodeId]?.label} as the source node.`);
+      // When changing source, reset the visualization
+      setShowAnswer(false);
+      setVisualizationMode('explore');
+      setConfirmedPathEdges(new Set());
       return;
     }
+    
     // Selecting dest
     if (isSelectingDest) {
       setSelectedDestNode(nodeId);
       setIsSelectingDest(false);
       setExplanation(`Set node ${nodes[nodeId]?.label} as the destination node.`);
+      
+      // If we're in view mode, update the path highlighting
+      if (visualizationMode === 'view') {
+        handleShowAnswer();
+      }
       return;
     }
+    
     // Deleting node
     if (isDeletingNode) {
       const filteredEdges = edges.filter((e) => e.source !== nodeId && e.target !== nodeId);
@@ -542,7 +706,7 @@ const ShortestPathVisualizer = () => {
   //   ANIMATION LOOP
   // =========================
   useEffect(() => {
-    if (isRunning && !isPaused) {
+    if (isRunning && !isPaused && visualizationMode === 'explore') {
       const animate = () => {
         if (currentStep < steps.length) {
           applyStep(currentStep);
@@ -558,7 +722,7 @@ const ShortestPathVisualizer = () => {
       if (animationFrameId.current) clearTimeout(animationFrameId.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRunning, isPaused, currentStep, steps, animationSpeed]);
+  }, [isRunning, isPaused, currentStep, steps, animationSpeed, visualizationMode]);
 
   // =========================
   //   INIT & RESIZE
@@ -582,71 +746,73 @@ const ShortestPathVisualizer = () => {
   // =========================
   //   RENDER
   // =========================
+  const ALGORITHM_METADATA = {
+    dijkstra: {
+      name: "Dijkstra's Algorithm",
+      complexity: "O((V + E) log V)",
+      description: "Finds shortest paths in weighted graphs without negative edges",
+      bestFor: "GPS navigation, network routing"
+    },
+    bellmanford: {
+      name: "Bellman-Ford Algorithm",
+      complexity: "O(VE)",
+      description: "Handles negative weights and detects negative cycles",
+      bestFor: "Financial arbitrage, network protocols"
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-100">
       {/* HEADER BAR */}
-      <header className="bg-blue-600 text-white shadow-md py-3 px-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <h1 className="text-xl font-bold tracking-tight">Shortest Path Algorithm Visualizer</h1>
-            <button
-              onClick={toggleLegend}
-              className="ml-3 text-xs bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded-full transition-colors"
-            >
-              {showLegend ? 'Hide Legend' : 'Show Legend'}
-            </button>
-          </div>
-
-          <div className="flex gap-4 items-center">
-            {/* Desktop Algorithm Selector */}
-            <div className="hidden sm:flex items-center space-x-4">
-              <div className="flex items-center">
-                <input
-                  type="radio"
-                  id="dijkstra"
-                  name="algorithm"
-                  value="dijkstra"
-                  checked={algorithm === 'dijkstra'}
-                  onChange={handleAlgorithmChange}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <label htmlFor="dijkstra" className="ml-2 font-medium">
-                  Dijkstra
-                </label>
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="radio"
-                  id="bellmanford"
-                  name="algorithm"
-                  value="bellmanford"
-                  checked={algorithm === 'bellmanford'}
-                  onChange={handleAlgorithmChange}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <label htmlFor="bellmanford" className="ml-2 font-medium">
-                  Bellman-Ford
-                </label>
+      <header className="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-md py-3 px-4">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <div className="flex items-center space-x-3">
+              <h1 className="text-xl font-bold tracking-tight">
+                Shortest Path Algorithm Visualizer
+              </h1>
+              <div className="hidden md:flex space-x-1 text-xs">
+                <span className="px-2 py-1 bg-blue-500/30 backdrop-blur-sm rounded">Educational Tool</span>
+                <span className="px-2 py-1 bg-blue-500/30 backdrop-blur-sm rounded">Interactive</span>
               </div>
             </div>
 
-            {/* Sidebar toggle (mobile) */}
-            <button
-              className="sm:hidden rounded-full p-2 bg-blue-700 hover:bg-blue-800 transition-colors"
-              onClick={toggleSidebar}
-              aria-label="Toggle sidebar"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={toggleLegend}
+                className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors backdrop-blur-sm flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                  <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                </svg>
+                {showLegend ? 'Hide Legend' : 'Show Legend'}
+              </button>
+              
+              <div className="bg-white/10 backdrop-blur-sm rounded-full p-1 flex">
+                <button
+                  onClick={() => setAlgorithm('dijkstra')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    algorithm === 'dijkstra' 
+                      ? 'bg-white text-blue-700' 
+                      : 'text-white hover:bg-white/10'
+                  }`}
+                >
+                  Dijkstra's Algorithm
+                </button>
+                <button
+                  onClick={() => setAlgorithm('bellmanford')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    algorithm === 'bellmanford' 
+                      ? 'bg-white text-blue-700' 
+                      : 'text-white hover:bg-white/10'
+                  }`}
+                >
+                  Bellman-Ford Algorithm
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
       {/* LEGEND (Collapsible) */}
       {showLegend && (
@@ -663,7 +829,7 @@ const ShortestPathVisualizer = () => {
             </div>
             <div className="flex items-center px-2">
               <div className="w-4 h-4 bg-green-500 mr-2 rounded" />
-              <span className="text-xs">Relaxed/Included</span>
+              <span className="text-xs">Shortest Path</span>
             </div>
             <div className="flex items-center px-2">
               <div className="w-4 h-4 bg-red-500 mr-2 rounded" />
@@ -742,90 +908,272 @@ const ShortestPathVisualizer = () => {
                 onEdgeClick={handleEdgeClick}
                 />
             </svg>
+              {/* Mini Tutorial Button */}
+              <div className="absolute bottom-4 left-4 z-10">
+                <button
+                  onClick={() => setShowTutorial(true)}
+                  className="bg-white/90 hover:bg-white text-blue-600 flex items-center rounded-full px-3 py-1.5 shadow-md text-xs font-medium transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  How It Works
+                </button>
+              </div>
 
-            {/* Algorithm Visualization Overlay */}
-            <AlgorithmVisualizer 
-                algorithm={algorithm}
-                nodes={nodes}
-                distanceArray={distanceArray}
-                minHeap={minHeap}
-                iterationCount={iterationCount}
-                negativeCycleDetected={negativeCycleDetected}
-            />
+              {/* Tutorial Modal */}
+              {showTutorial && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+                    <div className="p-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold text-blue-800">How to Use This Visualizer</h2>
+                        <button 
+                          onClick={() => setShowTutorial(false)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="rounded-lg bg-blue-50 p-4 border-l-4 border-blue-500">
+                          <h3 className="font-semibold text-blue-700 mb-2">Getting Started</h3>
+                          <ol className="list-decimal ml-5 space-y-2 text-gray-700">
+                            <li>Select either <span className="font-medium">Dijkstra's</span> or <span className="font-medium">Bellman-Ford</span> algorithm from the top bar</li>
+                            <li>A random graph is auto-generated when you load the page</li>
+                            <li>The green node is the <span className="text-green-600 font-medium">source node</span> where the algorithm starts</li>
+                            <li>You can set an orange <span className="text-orange-600 font-medium">destination node</span> to focus on a specific path</li>
+                          </ol>
+                        </div>
+                        
+                        <div className="rounded-lg bg-purple-50 p-4 border-l-4 border-purple-500">
+                          <h3 className="font-semibold text-purple-700 mb-2">Understanding the Controls</h3>
+                          <ul className="space-y-2 text-gray-700">
+                            <li><strong>Start:</strong> Run the algorithm automatically</li>
+                            <li><strong>Step:</strong> Execute a single algorithm operation</li> 
+                            <li><strong>Skip to Event:</strong> Jump to the next significant event (path update, node visit)</li>
+                            <li><strong>View Paths/Explore Steps:</strong> Toggle between exploration and viewing modes</li>
+                            <li><strong>Reset:</strong> Clear all algorithm progress</li>
+                            <li><strong>Show All Paths:</strong> Display the final shortest paths</li>
+                          </ul>
+                        </div>
+                        
+                        <div className="rounded-lg bg-amber-50 p-4 border-l-4 border-amber-500">
+                          <h3 className="font-semibold text-amber-700 mb-2">Educational Features</h3>
+                          <ul className="space-y-2 text-gray-700">
+                            <li>Watch how the algorithm <strong>builds paths incrementally</strong> - edges become part of the shortest path (green)</li>
+                            <li>Observe the <strong>data structures</strong> (distances, priority queue) on the right panel</li>
+                            <li>Follow the <strong>highlighted pseudocode</strong> to understand the algorithm's current step</li>
+                            <li>Read the <strong>explanation box</strong> at the bottom for details about each operation</li>
+                            <li>Compare the <strong>time complexity</strong> and trade-offs of both algorithms</li>
+                          </ul>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-6 flex justify-end">
+                        <button
+                          onClick={() => setShowTutorial(false)}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                        >
+                          Got it!
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* Algorithm Visualization Overlay */}
+                <AlgorithmVisualizer 
+                  algorithm={algorithm}
+                  nodes={nodes}
+                  distanceArray={distanceArray}
+                  minHeap={minHeap}
+                  iterationCount={iterationCount}
+                  negativeCycleDetected={negativeCycleDetected}
+                  currentStep={currentStep}
+                  steps={steps}
+                  visitedNodes={visitedNodes}
+                  currentAlgorithmStep={currentAlgorithmStep}
+                />
+
+                {/* Visualization Mode Indicator */}
+                <div className="absolute bottom-3 right-3 z-10">
+                  <div className={`px-3 py-1 rounded-full text-xs font-medium shadow-sm ${
+                    visualizationMode === 'explore' 
+                      ? 'bg-blue-100 text-blue-800 border border-blue-300' 
+                      : 'bg-purple-100 text-purple-800 border border-purple-300'
+                  }`}>
+                    {visualizationMode === 'explore' ? 'Explore Mode' : 'View Mode'}
+                  </div>
+                </div>
+
             </div>
 
             {/* CONTROL PANEL */}
             <div className="bg-white border-t border-slate-200 p-3">
               <div className="flex justify-center flex-wrap gap-2 mb-3">
-                {/* Start/Resume/Pause */}
-                <button
+              {/* Step Progress Indicator */}
+              {steps.length > 0 && (
+                <div className="w-full max-w-md flex items-center justify-center gap-2 mb-2">
+                <span className="text-xs text-slate-700">{currentStep} of {steps.length}</span>
+                <div className="h-2 bg-slate-200 rounded-full flex-1">
+                  <div 
+                  className="h-2 bg-blue-500 rounded-full" 
+                  style={{ width: `${(currentStep / steps.length) * 100}%` }}
+                  ></div>
+                </div>
+                </div>
+              )}
+              
+              <div className="flex justify-center flex-wrap gap-2">
+                {/* Back Step Button with tooltip */}
+                <div className="relative group">
+                  <button
+                  onClick={handleBackStep}
+                  disabled={currentStep === 0 || isRunning}
+                  className="py-2 px-4 rounded-md flex items-center justify-center bg-slate-500 hover:bg-slate-600 text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Go back one step in the algorithm execution"
+                  >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                  </svg>
+                  Back
+                  </button>
+                  {visualizationMode === 'view' && (
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-9 w-40 bg-black text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                      Switch to Explore mode to use
+                    </div>
+                  )}
+                </div>
+                
+                {/* Start/Resume/Pause with tooltip */}
+                <div className="relative group">
+                  <button
                   onClick={handlePlayPause}
+                  disabled={visualizationMode === 'view'}
                   className={`py-2 px-4 rounded-md flex items-center justify-center ${
                     isRunning && !isPaused
-                      ? 'bg-amber-500 hover:bg-amber-600'
-                      : 'bg-green-500 hover:bg-green-600'
-                  } text-white transition-colors shadow-sm`}
-                >
+                    ? 'bg-amber-500 hover:bg-amber-600'
+                    : 'bg-green-500 hover:bg-green-600'
+                  } text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={isRunning ? (isPaused ? "Resume animation" : "Pause animation") : "Start animation"}
+                  >
                   {isRunning ? (
                     isPaused ? (
                     <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                        </svg>
-                        Resume
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                      </svg>
+                      Resume
                     </>
                     ) : (
                     <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        Pause
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Pause
                     </>
                     )
-                ) : (
+                  ) : (
                     <>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                     </svg>
                     Start
                     </>
-                )}
-                </button>
+                  )}
+                  </button>
+                  {visualizationMode === 'view' && (
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-9 w-40 bg-black text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                      Switch to Explore mode to use
+                    </div>
+                  )}
+                </div>
 
-               {/* Step Button - Add Icon */}
+                {/* Step Button with tooltip */}
+                <div className="relative group">
+                  <button
+                  onClick={handleStep}
+                  disabled={visualizationMode === 'view'}
+                  className="py-2 px-4 rounded-md flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Execute one single step of the algorithm"
+                  >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                  </svg>
+                  Step
+                  </button>
+                  {visualizationMode === 'view' && (
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-9 w-40 bg-black text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                      Switch to Explore mode to use
+                    </div>
+                  )}
+                </div>
+
+                {/* Forward Step Button with tooltip */}
+                <div className="relative group">
+                  <button
+                  onClick={handleForwardStep}
+                  disabled={currentStep >= steps.length || isRunning || visualizationMode === 'view'}
+                  className="py-2 px-4 rounded-md flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Skip to the next significant algorithm event (path update, node visit)"
+                  >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                  Skip to Event
+                  </button>
+                  {visualizationMode === 'view' && (
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-9 w-40 bg-black text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                      Switch to Explore mode to use
+                    </div>
+                  )}
+                </div>
+
+                {/* Mode Toggle Button */}
                 <button
-                onClick={handleStep}
-                disabled={showAnswer}
-                className="py-2 px-4 rounded-md flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white transition-colors shadow-sm disabled:bg-blue-300"
+                onClick={toggleVisualizationMode}
+                className={`py-2 px-4 rounded-md flex items-center justify-center ${
+                  visualizationMode === 'explore' 
+                    ? 'bg-purple-500 hover:bg-purple-600' 
+                    : 'bg-blue-500 hover:bg-blue-600'
+                } text-white transition-colors shadow-sm`}
+                title={visualizationMode === 'explore' ? "Switch to View mode" : "Switch to Explore mode"}
                 >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v1.5a1 1 0 001.555.832L12 9l-2.445-1.332a1 1 0 00-.2 0l-2.445 1.332A1 1 0 006 8.5V8a1 1 0 00-1-1h2.555a1 1 0 00-.2 0z" clipRule="evenodd" />
-                </svg>
-                Step
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                  </svg>
+                  {visualizationMode === 'explore' ? 'View Paths' : 'Explore Steps'}
                 </button>
 
-                {/* Reset Button - Add Icon */}
+                {/* Reset Button */}
                 <button
                 onClick={resetGraph}
                 className="py-2 px-4 rounded-md flex items-center justify-center bg-slate-500 hover:bg-slate-600 text-white transition-colors shadow-sm"
+                title="Reset the graph and algorithm state"
                 >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
                 </svg>
                 Reset
                 </button>
 
-                {/* Show Button - Add Icon */}
+                {/* Show Button */}
                 <button
                 onClick={handleShowAnswer}
                 className="py-2 px-4 rounded-md flex items-center justify-center bg-purple-500 hover:bg-purple-600 text-white transition-colors shadow-sm"
+                title="Show the final shortest paths"
                 >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                 </svg>
-                Show
+                Show All Paths
                 </button>
+              </div>
               </div>
 
               {/* SPEED CONTROL */}
@@ -838,6 +1186,8 @@ const ShortestPathVisualizer = () => {
                   value={(2200 - animationSpeed) / 400}
                   onChange={handleSpeedChange}
                   className="w-24 h-2 accent-blue-600"
+                  disabled={visualizationMode === 'view'}
+                  title={visualizationMode === 'view' ? "Animation speed (disabled in View mode)" : "Animation speed"}
                 />
                 <div className="flex text-xs text-slate-600">
                   <span>Slow</span>
@@ -953,6 +1303,28 @@ const ShortestPathVisualizer = () => {
                     </>
                 )}
                 </div>
+                <div className="grid grid-cols-3 gap-2 mb-3 bg-slate-50 p-2 rounded border border-slate-200">
+                  <div className="text-center">
+                    <div className="text-xs text-slate-500">Visited</div>
+                    <div className="text-lg font-bold text-blue-600">
+                      {visitedNodes.size}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-slate-500">Path Length</div>
+                    <div className="text-lg font-bold text-green-600">
+                      {selectedDestNode !== null && distanceArray[selectedDestNode] !== Infinity 
+                        ? distanceArray[selectedDestNode] 
+                        : "-"}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-slate-500">Time</div>
+                    <div className="text-lg font-bold text-purple-600">
+                      {steps.length > 0 ? (steps.length * animationSpeed)/1000 + "s" : "-"}
+                    </div>
+                  </div>
+                </div>
               {/* Explanation or Current Step could be shown here */}
               <div className="bg-blue-50 rounded-lg p-2 border border-blue-100 min-h-16 max-h-32 overflow-y-auto">
                 <h3 className="font-semibold text-blue-800 text-sm">Explanation:</h3>
@@ -1053,44 +1425,45 @@ const ShortestPathVisualizer = () => {
             {/* Auto Mode Controls */}
             {mode === 'auto' && (
               <>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-slate-700">Number of Nodes</label>
-                  <div className="flex items-center">
-                    <input
-                      type="range"
-                      name="nodeCount"
-                      min="3"
-                      max="10"
-                      value={graphParams.nodeCount}
-                      onChange={handleParamChange}
-                      className="w-full mt-1 accent-blue-600"
-                    />
-                    <span className="ml-2 text-slate-700 font-medium w-6 text-center">
-                      {graphParams.nodeCount}
-                    </span>
+                {/* Number of Nodes - Enhanced slider */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm font-medium text-gray-700">Number of Nodes</label>
+                    <span className="text-blue-600 font-medium">{graphParams.nodeCount}</span>
                   </div>
+                  <input
+                    type="range"
+                    name="nodeCount"
+                    min="3"
+                    max="10"
+                    value={graphParams.nodeCount}
+                    onChange={handleParamChange}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  />
                 </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-slate-700">Edge Density</label>
-                  <div className="flex items-center">
-                    <input
-                      type="range"
-                      name="density"
-                      min="0.2"
-                      max="0.8"
-                      step="0.1"
-                      value={graphParams.density}
-                      onChange={handleParamChange}
-                      className="w-full mt-1 accent-blue-600"
-                    />
-                    <span className="ml-2 text-slate-700 font-medium w-6 text-center">
-                      {graphParams.density.toFixed(1)}
-                    </span>
+
+                {/* Edge Density - Enhanced slider */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm font-medium text-gray-700">Edge Density</label>
+                    <span className="text-blue-600 font-medium">{graphParams.density.toFixed(1)}</span>
                   </div>
+                  <input
+                    type="range"
+                    name="density"
+                    min="0.2"
+                    max="0.8"
+                    step="0.1"
+                    value={graphParams.density}
+                    onChange={handleParamChange}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  />
                 </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-slate-700">Weight Range</label>
-                  <div className="flex items-center gap-2">
+
+                {/* Weight Range */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Weight Range</label>
+                  <div className="flex items-center space-x-2">
                     <input
                       type="number"
                       name="minWeight"
@@ -1098,9 +1471,9 @@ const ShortestPathVisualizer = () => {
                       max="98"
                       value={graphParams.minWeight}
                       onChange={handleParamChange}
-                      className="w-16 border border-slate-300 rounded p-1 text-center"
+                      className="w-full border border-gray-300 rounded-md py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
-                    <span>to</span>
+                    <span className="text-gray-500">to</span>
                     <input
                       type="number"
                       name="maxWeight"
@@ -1108,14 +1481,14 @@ const ShortestPathVisualizer = () => {
                       max="99"
                       value={graphParams.maxWeight}
                       onChange={handleParamChange}
-                      className="w-16 border border-slate-300 rounded p-1 text-center"
+                      className="w-full border border-gray-300 rounded-md py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                 </div>
 
                 {/* Negative Edges (only for Bellman-Ford) */}
                 {algorithm === 'bellmanford' && (
-                  <div className="mb-3">
+                  <div className="mb-4">
                     <div className="flex items-center">
                       <input
                         type="checkbox"
@@ -1137,43 +1510,61 @@ const ShortestPathVisualizer = () => {
                   </div>
                 )}
 
-                {/* Generate New Graph */}
+                {/* Generate New Graph - Enhanced button */}
                 <button
                   onClick={handleGenerateRandomGraph}
-                  className="mt-2 w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors flex items-center justify-center"
+                  className="mt-4 w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2 px-4 rounded-md transition-colors shadow-sm flex items-center justify-center"
                 >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                  </svg>
                   Generate New Graph
                 </button>
-                {/* Algorithm Reference */}
-                <div className="mt-6 border-t pt-4 border-slate-200">
-                <h3 className="font-semibold text-slate-700 mb-2">Algorithm Reference</h3>
-                <div className="bg-slate-50 p-3 rounded border border-slate-200 text-xs font-mono overflow-y-auto max-h-60">
-                    {algorithm === 'dijkstra' ? (
-                    <div className="space-y-1 text-slate-700">
-                        <h4 className="font-bold">Dijkstra's Algorithm:</h4>
-                        <div className="ml-4 pl-4 border-l-2 border-slate-300 space-y-1">
-                        <p><span className="text-blue-600 font-bold">1.</span> Initialize distances: source=0, others=∞</p>
-                        <p><span className="text-blue-600 font-bold">2.</span> Add source to priority queue</p>
-                        <p><span className="text-blue-600 font-bold">3.</span> While priority queue not empty:</p>
-                        <p className="ml-4"><span className="text-blue-500">a.</span> Extract node with min distance</p>
-                        <p className="ml-4"><span className="text-blue-500">b.</span> For each neighbor, relax if shorter path found</p>
-                        <p className="ml-4"><span className="text-blue-500">c.</span> Add updated neighbors to queue</p>
-                        </div>
-                        <p className="mt-2 text-red-600 text-xs">Note: Does not work with negative weights</p>
+
+                {/* Algorithm comparison - new educational component */}
+                <div className="mt-6 pt-4 border-t border-gray-100">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-semibold text-gray-700">Compare Algorithms</h3>
+                    <span className="text-xs text-gray-500">Key differences</span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 text-xs">
+                    <div className="flex">
+                      <div className="w-1/2 pr-2 border-r border-gray-200">
+                        <h4 className="font-bold text-blue-700 mb-1">Dijkstra's</h4>
+                        <ul className="space-y-1 text-gray-600">
+                          <li className="flex items-start">
+                            <span className="text-green-500 mr-1">✓</span> Faster for sparse graphs
+                          </li>
+                          <li className="flex items-start">
+                            <span className="text-green-500 mr-1">✓</span> Priority queue optimized
+                          </li>
+                          <li className="flex items-start">
+                            <span className="text-red-500 mr-1">✗</span> No negative weights
+                          </li>
+                        </ul>
+                      </div>
+                      <div className="w-1/2 pl-2">
+                        <h4 className="font-bold text-blue-700 mb-1">Bellman-Ford</h4>
+                        <ul className="space-y-1 text-gray-600">
+                          <li className="flex items-start">
+                            <span className="text-green-500 mr-1">✓</span> Handles negative weights
+                          </li>
+                          <li className="flex items-start">
+                            <span className="text-green-500 mr-1">✓</span> Detects negative cycles
+                          </li>
+                          <li className="flex items-start">
+                            <span className="text-red-500 mr-1">✗</span> Slower (checks all edges)
+                          </li>
+                        </ul>
+                      </div>
                     </div>
-                    ) : (
-                    <div className="space-y-1 text-slate-700">
-                        <h4 className="font-bold">Bellman-Ford Algorithm:</h4>
-                        <div className="ml-4 pl-4 border-l-2 border-slate-300 space-y-1">
-                        <p><span className="text-blue-600 font-bold">1.</span> Initialize distances: source=0, others=∞</p>
-                        <p><span className="text-blue-600 font-bold">2.</span> Repeat |V|-1 times:</p>
-                        <p className="ml-4"><span className="text-blue-500">a.</span> Relax all edges</p>
-                        <p><span className="text-blue-600 font-bold">3.</span> Check for negative cycles</p>
-                        </div>
-                        <p className="mt-2 text-green-600 text-xs">Can handle negative weights & detect negative cycles</p>
+                    <div className="mt-2 text-gray-500 border-t border-gray-200 pt-2">
+                      <div className="flex justify-between">
+                        <span>Time Complexity:</span>
+                        <span>{algorithm === 'dijkstra' ? 'O((V+E)log V)' : 'O(V⋅E)'}</span>
+                      </div>
                     </div>
-                    )}
-                </div>
+                  </div>
                 </div>
               </>
             )}
