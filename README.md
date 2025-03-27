@@ -2,6 +2,10 @@
 
 An interactive web application for visualizing Dijkstra's algorithm and the Bellman-Ford algorithm in action. Built to make graph algorithms more accessible and easier to understand through visual representation.
 
+![Shortest Path Algorithm Visualizer](./screenshot.png)
+
+**[🚀 Try it live: shortest-path-visualizer-pi.vercel.app](https://shortest-path-visualizer-pi.vercel.app)**
+
 
 ## Motivation
 
@@ -36,6 +40,13 @@ So I decided to build one myself! This project was born out of a genuine need to
 - Lodash
 
 ## Installation and Usage
+
+### Live Demo
+The easiest way to try the application is through the live demo:
+**[shortest-path-visualizer-pi.vercel.app](https://shortest-path-visualizer-pi.vercel.app)**
+
+### Local Setup
+If you prefer to run the application locally:
 
 ### Prerequisites
 - Node.js (v14.0 or higher)
