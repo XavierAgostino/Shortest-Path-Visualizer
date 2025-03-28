@@ -2,7 +2,7 @@
 
 An interactive web application for visualizing Dijkstra's algorithm and the Bellman-Ford algorithm in action. Built to make graph algorithms more accessible and easier to understand through visual representation.
 
-![Shortest Path Algorithm Visualizer](./hs.png)
+![Shortest Path Algorithm Visualizer](./homescreen.png)
 
 **[🚀 Try it live: shortest-path-visualizer-pi.vercel.app](https://shortest-path-visualizer-pi.vercel.app)**
 

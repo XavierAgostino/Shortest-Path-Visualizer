@@ -44,3 +44,21 @@ code {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
 }
+
+@keyframes pulse-fast {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes bounce-once {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-pulse-fast {
+  animation: pulse-fast 0.8s cubic-bezier(0.4, 0, 0.6, 1) 3;
+}
+
+.animate-bounce-once {
+  animation: bounce-once 0.5s ease-in-out 1;
+}

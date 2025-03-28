@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+// eslint-disable-next-line no-unused-vars
 import _ from "lodash";
 
 import GraphRenderer from "./GraphRenderer";
@@ -29,6 +30,8 @@ const ShortestPathVisualizer = () => {
   const [steps, setSteps] = useState([]);
   const [showAnswer, setShowAnswer] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [currentRelaxingEdge, setCurrentRelaxingEdge] = useState(null);
+  const [recentlyUpdatedDistances, setRecentlyUpdatedDistances] = useState([]);
 
   // Track confirmed shortest path edges
   const [confirmedPathEdges, setConfirmedPathEdges] = useState(new Set());
@@ -521,7 +524,7 @@ const ShortestPathVisualizer = () => {
   const applyStep = (stepIndex) => {
     if (stepIndex < 0 || stepIndex >= steps.length) return;
     const step = steps[stepIndex];
-
+  
     // Start with edges that have unvisited status, but preserve confirmed path edges
     const resetEdges = edges.map((e) => {
       // If this edge is part of a confirmed path, keep its status
@@ -530,7 +533,7 @@ const ShortestPathVisualizer = () => {
       }
       return { ...e, status: "unvisited" };
     });
-
+  
     // Apply step changes
     const newEdges = [...resetEdges];
     step.edgeUpdates.forEach((update) => {
@@ -539,13 +542,19 @@ const ShortestPathVisualizer = () => {
         newEdges[idx] = { ...newEdges[idx], status: update.status };
       }
     });
-
+  
+    // NEW: Track edge being relaxed
+    setCurrentRelaxingEdge(step.currentEdgeBeingRelaxed || null);
+    
+    // NEW: Track distance updates
+    setRecentlyUpdatedDistances(step.updatedDistances || []);
+  
     // Update confirmed path edges if this step adds to the path
     if (step.pathEdgeUpdates && step.pathEdgeUpdates.length > 0) {
       const newConfirmedEdges = new Set(confirmedPathEdges);
       step.pathEdgeUpdates.forEach((edgeId) => {
         newConfirmedEdges.add(edgeId);
-
+  
         // Also update the edge status to 'included'
         const idx = newEdges.findIndex((e) => e.id === edgeId);
         if (idx !== -1) {
@@ -554,7 +563,7 @@ const ShortestPathVisualizer = () => {
       });
       setConfirmedPathEdges(newConfirmedEdges);
     }
-
+  
     // Update all states
     setEdges(newEdges);
     setExplanation(step.explanation);
@@ -928,11 +937,11 @@ const ShortestPathVisualizer = () => {
   return (
     <div className="flex flex-col min-h-screen bg-slate-100">
       {/* HEADER BAR */}
-      <header className="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-md py-3 px-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <h1 className="text-xl font-bold tracking-tight">
-              Shortest Path Algorithm Visualizer
+      <header className="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-md py-3 px-2 sm:px-4">
+        <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight">
+              Shortest Path Visualizer
             </h1>
             <div className="hidden md:flex space-x-1 text-xs">
               <span className="px-2 py-1 bg-blue-500/30 backdrop-blur-sm rounded">
@@ -944,14 +953,14 @@ const ShortestPathVisualizer = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center flex-wrap gap-2 sm:gap-3 mt-1 sm:mt-0">
             <button
               onClick={toggleLegend}
-              className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors backdrop-blur-sm flex items-center"
+              className="text-xs bg-white/20 hover:bg-white/30 px-2 sm:px-3 py-1 rounded-full transition-colors backdrop-blur-sm flex items-center"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-3.5 w-3.5 mr-1"
+                className="h-3 w-3 mr-1"
                 viewBox="0 0 20 20"
                 fill="currentColor"
               >
@@ -962,40 +971,40 @@ const ShortestPathVisualizer = () => {
                   clipRule="evenodd"
                 />
               </svg>
-              {showLegend ? "Hide Legend" : "Show Legend"}
+              <span className="whitespace-nowrap">{showLegend ? "Hide Legend" : "Show Legend"}</span>
             </button>
 
             <div className="hidden md:flex bg-white/10 backdrop-blur-sm rounded-full p-1">
               <button
                 onClick={() => setAlgorithm("dijkstra")}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
                   algorithm === "dijkstra"
                     ? "bg-white text-blue-700"
                     : "text-white hover:bg-white/10"
                 }`}
               >
-                Dijkstra's Algorithm
+                Dijkstra's
               </button>
               <button
                 onClick={() => setAlgorithm("bellmanford")}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
                   algorithm === "bellmanford"
                     ? "bg-white text-blue-700"
                     : "text-white hover:bg-white/10"
                 }`}
               >
-                Bellman-Ford Algorithm
+                Bellman-Ford
               </button>
             </div>
 
             {/* Toggle sidebar on larger screens */}
             <button
               onClick={toggleSidebar}
-              className="hidden md:flex text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors backdrop-blur-sm items-center"
+              className="hidden md:flex text-xs bg-white/20 hover:bg-white/30 px-2 sm:px-3 py-1 rounded-full transition-colors backdrop-blur-sm items-center"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-3.5 w-3.5 mr-1"
+                className="h-3 w-3 mr-1"
                 viewBox="0 0 20 20"
                 fill="currentColor"
               >
@@ -1005,7 +1014,7 @@ const ShortestPathVisualizer = () => {
                   clipRule="evenodd"
                 />
               </svg>
-              {showSidebar ? "Hide Sidebar" : "Show Sidebar"}
+              <span className="whitespace-nowrap">{showSidebar ? "Hide Sidebar" : "Show Sidebar"}</span>
             </button>
           </div>
         </div>
@@ -1136,7 +1145,7 @@ const ShortestPathVisualizer = () => {
               )}
 
               {/* Mini Tutorial Button */}
-              <div className="absolute bottom-4 left-4 z-10">
+              <div className="absolute top-4 right-4 z-10">
                 <button
                   onClick={() => setShowTutorial(true)}
                   className="bg-white/90 hover:bg-white text-blue-600 flex items-center rounded-full px-3 py-1.5 shadow-md text-xs font-medium transition-colors"

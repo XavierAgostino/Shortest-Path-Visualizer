@@ -36,6 +36,8 @@ export function generateBellmanFordSteps({
     negativeCycleDetected: false,
     edgeUpdates: [],
     pathEdgeUpdates: [], // Added for path tracking
+    updatedDistances: [sourceNodeId], // Mark source node as initially updated
+    currentEdgeBeingRelaxed: null,
   });
 
   // Relax edges up to |V|-1 times
@@ -50,6 +52,8 @@ export function generateBellmanFordSteps({
       negativeCycleDetected: false,
       edgeUpdates: [],
       pathEdgeUpdates: [], // Added for path tracking
+      updatedDistances: [],
+      currentEdgeBeingRelaxed: null,
     });
 
     for (const edge of edges) {
@@ -65,6 +69,8 @@ export function generateBellmanFordSteps({
           negativeCycleDetected: false,
           edgeUpdates: [{ id, status: 'excluded' }],
           pathEdgeUpdates: [], // Added for path tracking
+          updatedDistances: [],
+          currentEdgeBeingRelaxed: id, // Track this edge even if skipped
         });
         continue;
       }
@@ -79,6 +85,8 @@ export function generateBellmanFordSteps({
         negativeCycleDetected: false,
         edgeUpdates: [{ id, status: 'candidate' }],
         pathEdgeUpdates: [], // Added for path tracking
+        updatedDistances: [],
+        currentEdgeBeingRelaxed: id, // Track this edge as being considered
       });
 
       const newDist = dist[source] + weight;
@@ -99,6 +107,8 @@ export function generateBellmanFordSteps({
           negativeCycleDetected: false,
           edgeUpdates: [{ id, status: 'included' }], // Changed from 'relaxed' to 'included'
           pathEdgeUpdates: [id], // Added to track this edge in the path
+          updatedDistances: [target], // Track this node as having an updated distance
+          currentEdgeBeingRelaxed: id, // Keep tracking the current edge
         });
       } else {
         steps.push({
@@ -110,6 +120,8 @@ export function generateBellmanFordSteps({
           negativeCycleDetected: false,
           edgeUpdates: [{ id, status: 'excluded' }],
           pathEdgeUpdates: [], // Added for path tracking
+          updatedDistances: [],
+          currentEdgeBeingRelaxed: id, // Still track this edge
         });
       }
     }
@@ -124,6 +136,8 @@ export function generateBellmanFordSteps({
         negativeCycleDetected: false,
         edgeUpdates: [],
         pathEdgeUpdates: [], // Added for path tracking
+        updatedDistances: [],
+        currentEdgeBeingRelaxed: null,
       });
       break;
     }
@@ -139,6 +153,8 @@ export function generateBellmanFordSteps({
     negativeCycleDetected: false,
     edgeUpdates: [],
     pathEdgeUpdates: [], // Added for path tracking
+    updatedDistances: [],
+    currentEdgeBeingRelaxed: null,
   });
 
   for (const edge of edges) {
@@ -154,6 +170,8 @@ export function generateBellmanFordSteps({
         negativeCycleDetected: true,
         edgeUpdates: [{ id, status: 'negativecycle' }],
         pathEdgeUpdates: [], // Added for path tracking
+        updatedDistances: [],
+        currentEdgeBeingRelaxed: id, // Track the edge that creates the negative cycle
       });
       break;
     }
@@ -170,6 +188,8 @@ export function generateBellmanFordSteps({
       negativeCycleDetected: false,
       edgeUpdates: [],
       pathEdgeUpdates: [], // Added for path tracking
+      updatedDistances: [],
+      currentEdgeBeingRelaxed: null,
     });
 
     // Build paths

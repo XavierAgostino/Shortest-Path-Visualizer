@@ -38,6 +38,8 @@ export function generateDijkstraSteps({
     distanceArray: { ...dist },
     edgeUpdates: [],
     pathEdgeUpdates: [], // Added for path tracking
+    updatedDistances: [sourceNodeId], // Mark source node as initially updated
+    currentEdgeBeingRelaxed: null,
   });
 
   // Put source in PQ
@@ -50,6 +52,8 @@ export function generateDijkstraSteps({
     distanceArray: { ...dist },
     edgeUpdates: [],
     pathEdgeUpdates: [], // Added for path tracking
+    updatedDistances: [], // No distances updated in this step
+    currentEdgeBeingRelaxed: null,
   });
 
   // Main loop
@@ -69,6 +73,8 @@ export function generateDijkstraSteps({
         distanceArray: { ...dist },
         edgeUpdates: [],
         pathEdgeUpdates: [], // Added for path tracking
+        updatedDistances: [],
+        currentEdgeBeingRelaxed: null,
       });
       continue;
     }
@@ -83,6 +89,8 @@ export function generateDijkstraSteps({
       distanceArray: { ...dist },
       edgeUpdates: [],
       pathEdgeUpdates: [], // Added for path tracking
+      updatedDistances: [],
+      currentEdgeBeingRelaxed: null,
     });
 
     // Outgoing edges
@@ -99,6 +107,8 @@ export function generateDijkstraSteps({
           distanceArray: { ...dist },
           edgeUpdates: [{ id, status: 'excluded' }],
           pathEdgeUpdates: [], // Added for path tracking
+          updatedDistances: [],
+          currentEdgeBeingRelaxed: id, // Track current edge even if skipped
         });
         continue;
       }
@@ -112,6 +122,8 @@ export function generateDijkstraSteps({
         distanceArray: { ...dist },
         edgeUpdates: [{ id, status: 'candidate' }],
         pathEdgeUpdates: [], // Added for path tracking
+        updatedDistances: [],
+        currentEdgeBeingRelaxed: id, // Track this edge as the one being considered
       });
 
       // Relax
@@ -139,6 +151,8 @@ export function generateDijkstraSteps({
           distanceArray: { ...dist },
           edgeUpdates: [{ id, status: 'included' }], // Changed from 'relaxed' to 'included'
           pathEdgeUpdates: [id], // Added to track this edge in the path
+          updatedDistances: [target], // Track this node as having an updated distance
+          currentEdgeBeingRelaxed: id, // Keep tracking the current edge
         });
       } else {
         steps.push({
@@ -149,6 +163,8 @@ export function generateDijkstraSteps({
           distanceArray: { ...dist },
           edgeUpdates: [{ id, status: 'excluded' }],
           pathEdgeUpdates: [], // Added for path tracking
+          updatedDistances: [], // No distances updated
+          currentEdgeBeingRelaxed: id, // Still track this edge
         });
       }
     }
@@ -163,6 +179,8 @@ export function generateDijkstraSteps({
     distanceArray: { ...dist },
     edgeUpdates: [],
     pathEdgeUpdates: [], // Added for path tracking
+    updatedDistances: [],
+    currentEdgeBeingRelaxed: null,
   });
 
   // Build final paths
